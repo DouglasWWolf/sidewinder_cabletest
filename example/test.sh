@@ -9,11 +9,39 @@ timestamp()
     date +%s
 }
 
-# Ensure that a command parameter was given
-if [ -z $1 ] || [ $1 -lt 1 ]; then
-   echo "Need to specify a number of gigabytes" 1>&2
-   exit 1
+
+# By default, we won't load the bitstream
+need_bitstream=0
+
+# Parse the command line
+while (( "$#" )); do
+    if [ $1 == "-force" ]; then
+        need_bitstream=1
+        shift
+   else
+        gigabytes=$1
+        shift
+   fi
+done
+
+# Ensure that the user told how how many gigabytes of data to send
+if [ "$gigabytes" == "" ] || [ -z $gigabytes ]; then
+    echo "Need to specify a number of gigabytes on the command line"
+    exit 1
 fi
+
+# Is the bitstream not yet loaded?
+test $(is_bitstream_loaded) -eq 0 && need_bitstream=1
+
+# If we need to load the bitstream into the FPGA, make it so
+if [ $need_bitstream -eq 1 ]; then
+    echo "Loading bitstream..."
+    load_bitstream sidewinder_cabletest 10.11.12.2:3121
+    test $? -eq 0 || exit 1
+    sleep 3
+    echo "Bitstream loaded"
+fi
+
 
 # Display error message if we don't have PCS lock on the QSFP ports
 have_pcs=1
@@ -28,9 +56,6 @@ fi
 
 # If we don't have QSFP lock, we can't continue
 test $have_pcs -eq 0 && exit 1
-
-# Keep track of how many gigabytes we're going to move
-gigabytes=$1
 
 # Set the packet size to 1024 bytes (i.e., 16 cycles * 64-bytes per cycle)
 set_cycles_per_packet 16
