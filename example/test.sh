@@ -35,8 +35,13 @@ test $(is_bitstream_loaded) -eq 0 && need_bitstream=1
 
 # If we need to load the bitstream into the FPGA, make it so
 if [ $need_bitstream -eq 1 ]; then
-    echo "Loading bitstream..."
-    load_bitstream sidewinder_cabletest 10.11.12.2:3121
+
+    echo "Loading loopback bitstream..."
+    load_bitstream sidewinder_loopback.bit 10.11.12.3:3121
+    test $? -eq 0 || exit 1
+    
+    echo "Loading cabletest bitstream..."
+    load_bitstream -hot_reset sidewinder_cabletest.bit 10.11.12.2:3121
     test $? -eq 0 || exit 1
     sleep 3
     echo "Bitstream loaded"
@@ -67,7 +72,7 @@ cycles_per_packet=$(get_cycles_per_packet)
 packet_size=$((cycles_per_packet * 64))
 
 # Convert gigabytes to bytes
-xfer_size=$(($1 * 1024 * 1024 * 1024))
+xfer_size=$((gigabytes * 1024 * 1024 * 1024))
 
 # Compute the number of packets we're going to transfer
 xfer_packets=$((xfer_size / packet_size / 2))
