@@ -475,11 +475,11 @@
         <spirit:parameters>
           <spirit:parameter>
             <spirit:name>GENtimestamp</spirit:name>
-            <spirit:value>Sat Dec 09 22:23:16 UTC 2023</spirit:value>
+            <spirit:value>Sat Dec 09 22:23:59 UTC 2023</spirit:value>
           </spirit:parameter>
           <spirit:parameter>
             <spirit:name>outputProductCRC</spirit:name>
-            <spirit:value>9:b3c37961</spirit:value>
+            <spirit:value>9:74ce4102</spirit:value>
           </spirit:parameter>
         </spirit:parameters>
       </spirit:view>
@@ -36040,7 +36040,6 @@
   <spirit:vendorExtensions>
     <xilinx:coreExtensions>
       <xilinx:displayName>System ILA</xilinx:displayName>
-      <xilinx:supportsDeferredElaboration>true</xilinx:supportsDeferredElaboration>
       <xilinx:coreRevision>10</xilinx:coreRevision>
       <xilinx:tags>
         <xilinx:tag xilinx:name="xilinx.com:ip:system_ila:1.0_ARCHIVE_LOCATION">/proj/xhdhdstaff/niloyr/debug_tools/IP3_niloyr_cs/DEV/output/internal/vivado/data/ip/xilinx</xilinx:tag>

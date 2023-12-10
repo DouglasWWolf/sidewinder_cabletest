@@ -33,18 +33,33 @@ fi
 # Is the bitstream not yet loaded?
 test $(is_bitstream_loaded) -eq 0 && need_bitstream=1
 
-# If we need to load the bitstream into the FPGA, make it so
+# If there were a large number of previous errors, we're
+# going to force a reload of the bitstreams
+if [ $(is_bitstream_loaded) ]; then
+    error_count1=$(get_errors 1)
+    error_count2=$(get_errors 2)
+    errors=$((error_count1 + error_count2))
+    test $errors -gt 10 && need_bitstream=1
+fi
+
+# If we need to load the bitstreams into the FPGA, make it so
 if [ $need_bitstream -eq 1 ]; then
 
+    # Load the cabletest bitstream first.  In the case where it was
+    # busy generating packets, this will halt outgoing dataflow
+    echo "Loading cabletest bitstream..."
+    load_bitstream -hot_reset sidewinder_cabletest.bit 10.11.12.2:3121
+    test $? -eq 0 || exit 1
+
+    # Now that we know that there aren't packets bouncing off of it,
+    # it's now safe to load the loopback bitstream
     echo "Loading loopback bitstream..."
     load_bitstream sidewinder_loopback.bit 10.11.12.3:3121
     test $? -eq 0 || exit 1
     
-    echo "Loading cabletest bitstream..."
-    load_bitstream -hot_reset sidewinder_cabletest.bit 10.11.12.2:3121
-    test $? -eq 0 || exit 1
+    # Wait a moment for PCS lock to occur
     sleep 3
-    echo "Bitstream loaded"
+    echo "Bitstreams loaded"
 fi
 
 
@@ -139,8 +154,9 @@ elapsed=$(( ts2 - ts1 ))
 
 # If it took at least a second, display some basic statistics
 if [ $elapsed -ne 0 ]; then 
+    megabytes=$((xfer_size / 1000000))
     echo $elapsed Elapsed Seconds
-    echo "Approximately $(( gigabytes * 1024 / elapsed)) MB per second"
+    echo "Approximately $((megabytes / elapsed)) MB per second"
 fi
 
 

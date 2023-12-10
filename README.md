@@ -1,2 +1,4 @@
-# Sidewinder Cable Test
+# Sidewinder Cabletest
+
+![Design Schematic](/image/design.png)
 
