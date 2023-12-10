@@ -18,14 +18,11 @@ module packet_gen
     input   clk, resetn,
    
 
-    input[ 7:0] CYCLES_PER_PACKET,
-    input[63:0] PACKET_COUNT,
-    input       start,
-    input       sim_err,
-
-    output      busy,
-    output      packet_sent,
-    output reg  resetn_fifo,
+    input [ 7:0] CYCLES_PER_PACKET,
+    input [63:0] PACKET_COUNT,
+    input [ 2:0] control,
+    output[ 2:0] status,
+    output reg   resetn_fifo,
 
     //==================================================================
     //                   The packet-output stream
@@ -51,17 +48,20 @@ module packet_gen
 
 reg[ 63:0] packets_sent;
 reg[  7:0] cycle_number;
-reg        sim_err_latched;
+reg        inject_latched;
 
 // This is a new psuedo-random number on every clock cycle
 wire[511:0] random;
 random u_random(clk, resetn, random);
 
 // This is a single bit on at a random location in a 512 bit field
-wire[511:0] single_bit_error = {511'b0, sim_err_latched} << random[8:0];
+wire[511:0] single_bit_error = {511'b0, inject_latched} << random[8:0];
 
 // This is high on any clock cycle where a data transfer occurs on the output stream
 wire handshake = AXIS_OUT_TVALID & AXIS_OUT_TREADY;
+
+// This will latch high when we're sent a "halt" signal
+reg halt;
 
 // The possible states of our state machine
 reg[  1:0] fsm_state;
@@ -69,6 +69,16 @@ localparam FSM_WAIT_FOR_START = 0;
 localparam FSM_RESET_FIFO1    = 1;
 localparam FSM_RESET_FIFO2    = 2;
 localparam FSM_GENERATE       = 3;
+
+// Bit definitions of the "control" port
+localparam CTL_START  = 0;
+localparam CTL_HALT   = 1;
+localparam CTL_INJECT = 2;
+
+// Bit definitions of the "status" port
+localparam STA_BUSY   = 0;
+localparam STA_SENT   = 1;
+localparam STA_HALTED = 2;
 
 // TDATA is driven with (psuedo) random bits, with potentially 1 bit flipped
 assign AXIS_OUT_TDATA = random ^ single_bit_error;
@@ -87,10 +97,13 @@ assign AXIS_FIFO_TDATA  = random;
 assign AXIS_FIFO_TVALID = handshake;
 
 // We're busy any time we're generating packets
-assign busy = (start || fsm_state != FSM_WAIT_FOR_START);
+assign status[STA_BUSY] = (control[CTL_START] || fsm_state != FSM_WAIT_FOR_START);
+
+// Fill in the status bit that tells the outside world we've been halted
+assign status[STA_HALTED] = (status[STA_BUSY] == 0) & halt;
 
 // Strobe "packet_sent" on the last cycle of every packet
-assign packet_sent = (handshake & AXIS_OUT_TLAST);
+assign status[STA_SENT] = (handshake & AXIS_OUT_TLAST);
 
 //==================================================================
 // This state machine drives data-packets out both the AXIS_OUT
@@ -100,6 +113,9 @@ reg[31:0] countdown;
 //------------------------------------------------------------------
 always @(posedge clk) begin
     
+    // Latch the "halt" control signal
+    if (control[CTL_HALT]) halt <= 1;
+
     // This performs a continuous countdown
     if (countdown) countdown <= countdown - 1;
     
@@ -108,11 +124,12 @@ always @(posedge clk) begin
     end else case(fsm_state)
 
         FSM_WAIT_FOR_START:
-            if (start) begin
-                resetn_fifo     <= 0;
-                countdown       <= 16;
-                sim_err_latched <= 0;
-                fsm_state       <= FSM_RESET_FIFO1;
+            if (control[CTL_START]) begin
+                resetn_fifo    <= 0;
+                countdown      <= 16;
+                inject_latched <= 0;
+                halt           <= 0;
+                fsm_state      <= FSM_RESET_FIFO1;
             end
 
         FSM_RESET_FIFO1:
@@ -131,21 +148,22 @@ always @(posedge clk) begin
 
         FSM_GENERATE:
             if (handshake) begin
-                sim_err_latched <= 0;                
-                cycle_number <= cycle_number + 1;
+                inject_latched <= 0;                
+                cycle_number   <= cycle_number + 1;
                 if (AXIS_OUT_TLAST) begin
                     cycle_number <= 1;
                     if (packets_sent == PACKET_COUNT)
                         fsm_state <= FSM_WAIT_FOR_START;
                     else
                         packets_sent <= packets_sent + 1;
+                    if (halt) fsm_state <= FSM_WAIT_FOR_START;
                 end
             end
 
     endcase
 
-    // If we've been told to simulate an error, latch that state
-    if (sim_err) sim_err_latched <= 1;
+    // If we've been told to inject an error, latch that state
+    if (control[CTL_INJECT]) inject_latched <= 1;
 end
 //==================================================================
 

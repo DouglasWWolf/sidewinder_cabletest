@@ -48,23 +48,14 @@ module cabletest_ctl
     input                                   S_AXI_RREADY,
     //==========================================================================
  
-    // This goes high for a cycle to signal the start of packet generation
-    output reg start,
+    // Packet generation control
+    output[2:0] pg_control_1, pg_control_2,
+    
+    // Packet generation status
+    input [2:0] pg_status_1, pg_status_2,
 
-    // This goes high for a cycle to tell "packet_gen" to simulate an error
-    output reg sim_err1, sim_err2,
-
-    // Tells us whether the packet generators are doing their thing
-    input busy1, busy2,
-
-    // These pulse high 1 cycle every time a packet is sent
-    input sent1, sent2,
-
-    // These pulse high 1 cycle every time a packet is received
-    input rcvd1, rcvd2, 
-
-    // These pulse high on any clock cycle where a bit error occurs
-    input err1, err2,
+    // Packet receiver status
+    input [1:0] pr_status_1, pr_status_2,
 
     // The number of cycles in a data-packet
     output reg[7:0] CYCLES_PER_PACKET, 
@@ -99,7 +90,7 @@ module cabletest_ctl
     localparam REG_ERRORS1           = 13;
     localparam REG_ERRORS2           = 14;
 
-    localparam REG_SIM_ERROR         = 15;
+    localparam REG_CONTROL           = 15;
     //==========================================================================
 
 
@@ -137,9 +128,33 @@ module cabletest_ctl
     // (128 bytes is 32 32-bit registers)
     localparam ADDR_MASK = 7'h7F;
 
-    // Coalesce the two busy signals
-    wire[1:0] busy = {busy2, busy1};
-    
+    // The bit definitions of pg_control_1 and pg_control_2
+    localparam CTL_START  = 0;
+    localparam CTL_HALT   = 1;
+    localparam CTL_INJECT = 2;
+
+    // Bit definitions of pg_status_1 and pg_status_2
+    localparam STA_BUSY   = 0;
+    localparam STA_SENT   = 1;
+    localparam STA_HALTED = 2;
+
+    // Bit definitions for pr_status_1 and pr_status_2
+    localparam STA_RCVD   = 0;
+    localparam STA_ERROR  = 1;
+
+    // Various control signals for packet_gen
+    reg start, halt, inject1, inject2;
+
+    // We pack multiple control signals into the "packet_ctl_n" ports    
+    assign pg_control_1 = {inject1, halt, start};
+    assign pg_control_2 = {inject2, halt, start};
+
+    // Coalesce the two "busy" signals
+    wire[1:0] busy = {pg_status_2[STA_BUSY], pg_status_1[STA_BUSY]};
+
+    // Coalesce the two "halted" signals
+    wire[1:0] halted = {pg_status_2[STA_HALTED], pg_status_1[STA_HALTED]};
+
     // Number of packets transmitted
     reg[63:0] packets_out1, packets_out2;
 
@@ -147,7 +162,7 @@ module cabletest_ctl
     reg[63:0] packets_in1, packets_in2;
 
     // Number of data-cycles with mismatch errors detected
-    reg[31:0] errors1, errors2 ;
+    reg[31:0] errors1, errors2;
 
     //==========================================================================
     // This state machine handles AXI4-Lite write requests
@@ -157,9 +172,10 @@ module cabletest_ctl
     always @(posedge clk) begin
     
         // These will only strobe high for one cycle
-        start    <= 0;
-        sim_err1 <= 0;
-        sim_err2 <= 0;
+        start   <= 0;
+        halt    <= 0;
+        inject1 <= 0;
+        inject2 <= 0;
 
         // If we're in reset, initialize important registers
         if (resetn == 0) begin
@@ -194,12 +210,12 @@ module cabletest_ctl
                             start              <= 1;
                         end
 
-                    REG_SIM_ERROR:
+                    REG_CONTROL:
                         begin
-                            sim_err1 <= ashi_wdata[0];
-                            sim_err2 <= ashi_wdata[1];
+                            inject1 <= ashi_wdata[0];
+                            inject2 <= ashi_wdata[1];
+                            halt    <= ashi_wdata[2];
                         end
-
 
                     // Writes to any other register are a decode-error
                     default: ashi_wresp <= DECERR;
@@ -234,7 +250,7 @@ module cabletest_ctl
  
                 // Allow a read from any valid register                
                 REG_MODULE_REV:         ashi_rdata <= MODULE_VERSION;
-                REG_STATUS:             ashi_rdata <= busy;
+                REG_STATUS:             ashi_rdata <= {halted, busy};
                 REG_CYCLES_PER_PACKET:  ashi_rdata <= CYCLES_PER_PACKET;
                 REG_PACKET_COUNTH:      ashi_rdata <= PACKET_COUNT[63:32];
                 REG_PACKET_COUNTL:      ashi_rdata <= PACKET_COUNT[31:00];
@@ -269,12 +285,12 @@ module cabletest_ctl
             errors1      <= 0;
             errors2      <= 0;
         end else begin
-            if (sent1) packets_out1 <= packets_out1 + 1;
-            if (sent2) packets_out2 <= packets_out2 + 1;
-            if (rcvd1) packets_in1  <= packets_in1  + 1;
-            if (rcvd2) packets_in2  <= packets_in2  + 1;
-            if (err1 & errors1 != 32'hFFFF_FFFF) errors1 <= errors1 + 1;
-            if (err2 & errors2 != 32'hFFFF_FFFF) errors2 <= errors2 + 1;
+            if (pg_status_1[STA_SENT ]) packets_out1 <= packets_out1 + 1;
+            if (pg_status_2[STA_SENT ]) packets_out2 <= packets_out2 + 1;
+            if (pr_status_1[STA_RCVD ]) packets_in1  <= packets_in1  + 1;
+            if (pr_status_2[STA_RCVD ]) packets_in2  <= packets_in2  + 1;
+            if (pr_status_1[STA_ERROR]) errors1      <= errors1      + 1;
+            if (pr_status_2[STA_ERROR]) errors2      <= errors2      + 1;
         end
     end
     //==========================================================================

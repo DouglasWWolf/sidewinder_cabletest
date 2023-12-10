@@ -18,10 +18,7 @@ module receiver
 (
     input   clk, resetn,
    
-    output  packet_rcvd,
-
-    output  error,
-
+    output[1:0] status,
 
     //==================================================================
     //                   The packet-input stream
@@ -53,12 +50,15 @@ wire handshake = AXIS_IN_TREADY & AXIS_IN_TVALID;
 assign AXIS_IN_TREADY = AXIS_FIFO_TVALID & (resetn == 1);
 
 // "error" strobes high on a data mismatch
-assign error = (resetn == 1) & handshake & (AXIS_IN_TDATA != AXIS_FIFO_TDATA);
+wire error = (resetn == 1) & handshake & (AXIS_IN_TDATA != AXIS_FIFO_TDATA);
 
 // This strobes high when we receive the last data-cycle of a packet
-assign packet_rcvd = (resetn == 1) & handshake & AXIS_IN_TLAST;
+wire packet_rcvd = (resetn == 1) & handshake & AXIS_IN_TLAST;
 
 // The FIFO should output its next element every time we see incoming data
 assign AXIS_FIFO_TREADY = handshake;
+
+// We report "data mismatch" and "packet was received" to the control module
+assign status = {error, packet_rcvd};
 
 endmodule

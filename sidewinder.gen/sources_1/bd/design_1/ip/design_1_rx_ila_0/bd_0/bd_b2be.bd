@@ -1,7 +1,7 @@
 {
   "design": {
     "design_info": {
-      "boundary_crc": "0x57DA84DB2CD7714D",
+      "boundary_crc": "0xCC7FC8B4A38F5E5E",
       "design_src": "SBD",
       "device": "xczu19eg-ffvc1760-2-i",
       "name": "bd_b2be",
@@ -170,7 +170,7 @@
       },
       "probe0": {
         "direction": "I",
-        "left": "0",
+        "left": "1",
         "right": "0"
       },
       "resetn": {
@@ -232,7 +232,7 @@
             "value": "0"
           },
           "C_PROBE0_WIDTH": {
-            "value": "1"
+            "value": "2"
           },
           "C_PROBE1_TYPE": {
             "value": "0"

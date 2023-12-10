@@ -33,13 +33,24 @@ fi
 # Is the bitstream not yet loaded?
 test $(is_bitstream_loaded) -eq 0 && need_bitstream=1
 
-# If there were a large number of previous errors, we're
-# going to force a reload of the bitstreams
-if [ $(is_bitstream_loaded) ]; then
+# If we already have a the bitstream loaded...
+if [ $(is_bitstream_loaded) -eq 1 ]; then
+
+    # If there were a large number of previous errors, we're
+    # going to force a reload of the bitstreams
     error_count1=$(get_errors 1)
     error_count2=$(get_errors 2)
     errors=$((error_count1 + error_count2))
     test $errors -gt 10 && need_bitstream=1
+
+    # If there's an existing job running, halt it and wait a moment
+    # for the final packets to be received
+    if [ $(is_busy) -ne 0 ]; then
+        echo "Halting existing job..."
+        stop
+        sleep 1
+        echo "Halted"
+    fi
 fi
 
 # If we need to load the bitstreams into the FPGA, make it so
@@ -107,6 +118,15 @@ while [ $percent -ne 100 ]; do
     
     # Keep track of the current time
     ts2=$(timestamp)
+
+    # If this job was halted by the user, wait a half-second for the
+    # final packets to be received, then call it quits
+    if [ $(is_halted) -eq 3 ]; then
+        echo 
+        echo "Halted by user"
+        sleep .5
+        exit 1 
+    fi
 
     # Find out how many packets we've received
     packets_rcvd=$(get_packets_rcvd)

@@ -29,7 +29,7 @@ module bd_b2be_wrapper
   input SLOT_1_AXIS_tready;
   input SLOT_1_AXIS_tvalid;
   input clk;
-  input [0:0]probe0;
+  input [1:0]probe0;
   input resetn;
 
   wire [511:0]SLOT_0_AXIS_tdata;
@@ -42,7 +42,7 @@ module bd_b2be_wrapper
   wire SLOT_1_AXIS_tready;
   wire SLOT_1_AXIS_tvalid;
   wire clk;
-  wire [0:0]probe0;
+  wire [1:0]probe0;
   wire resetn;
 
   bd_b2be bd_b2be_i
