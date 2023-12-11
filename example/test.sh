@@ -98,7 +98,7 @@ cycles_per_packet=$(get_cycles_per_packet)
 packet_size=$((cycles_per_packet * 64))
 
 # Convert gigabytes to bytes
-xfer_size=$((gigabytes * 1024 * 1024 * 1024))
+xfer_size=$((gigabytes * 1000 * 1000 * 1000))
 
 # Compute the number of packets we're going to transfer
 xfer_packets=$((xfer_size / packet_size / 2))

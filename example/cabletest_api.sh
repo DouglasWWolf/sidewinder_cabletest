@@ -133,7 +133,9 @@ is_bitstream_loaded()
 load_bitstream()
 {
     ./load_bitstream $1 $2 $3  1>&2
-    return $?
+    local rc=$?
+    rm -rf .Xil/vivado_lab*
+    return $rc
 }
 #==============================================================================
 
