@@ -10,7 +10,7 @@ timestamp()
 }
 
 
-# By default, we won't load the bitstream
+# By default, we won't load the bitstreams
 need_bitstream=0
 
 # Parse the command line
@@ -56,14 +56,12 @@ fi
 # If we need to load the bitstreams into the FPGA, make it so
 if [ $need_bitstream -eq 1 ]; then
 
-    # Load the cabletest bitstream first.  In the case where it was
-    # busy generating packets, this will halt outgoing dataflow
+    # Load the main bitstream
     echo "Loading cabletest bitstream..."
     load_bitstream -hot_reset sidewinder_cabletest.bit 10.11.12.2:3121
     test $? -eq 0 || exit 1
 
-    # Now that we know that there aren't packets bouncing off of it,
-    # it's now safe to load the loopback bitstream
+    # Load the loopback bitstream
     echo "Loading loopback bitstream..."
     load_bitstream sidewinder_loopback.bit 10.11.12.3:3121
     test $? -eq 0 || exit 1
@@ -95,13 +93,17 @@ set_cycles_per_packet 16
 cycles_per_packet=$(get_cycles_per_packet)
 
 # Compute the size of packet in bytes
-packet_size=$((cycles_per_packet * 64))
+packet_bytes=$((cycles_per_packet * 64))
 
 # Convert gigabytes to bytes
-xfer_size=$((gigabytes * 1000 * 1000 * 1000))
+xfer_bytes=$((gigabytes * 1000 * 1000 * 1000))
 
-# Compute the number of packets we're going to transfer
-xfer_packets=$((xfer_size / packet_size / 2))
+# Compute the number of packets we're going to transfer 
+# (bash rounds this to the nearest whole number)
+xfer_packets=$((xfer_bytes / packet_bytes / 2))
+
+# Determine exactly how many bytes we'll transfer across both channels
+xfer_bytes=$((xfer_packets * 2 * packet_bytes))
 
 # Start transferring packets
 start $xfer_packets
@@ -109,12 +111,13 @@ start $xfer_packets
 # Find out when we started
 ts1=$(timestamp)
 
-percent=0
+# We're going to track the number of packets received.  If it 
+# stops increasing, we'll halt the job 
 prior_rcvd=-1
 rcvd_sequence=0;
 
-printf "%15i total packets in task\n" $xfer_packets
-while [ $percent -ne 100 ]; do
+printf "%15i total packets (per channel) in task\n" $xfer_packets
+while [ 1 -eq 1 ]; do
     
     # Keep track of the current time
     ts2=$(timestamp)
@@ -140,7 +143,7 @@ while [ $percent -ne 100 ]; do
     fi
 
     # If data isn't flowing in, stop the job
-    if [ $rcvd_sequence -eq 5 ]; then
+    if [ $rcvd_sequence -eq 2 ]; then
         echo -e "\n\n"
         echo "Packet flow has stopped!"
         echo $(get_packets_rcvd 1) packets received on QSFP0
@@ -174,9 +177,9 @@ elapsed=$(( ts2 - ts1 ))
 
 # If it took at least a second, display some basic statistics
 if [ $elapsed -ne 0 ]; then 
-    megabytes=$((xfer_size / 1000000))
+    megabytes=$((xfer_bytes / 1000000))
     echo $elapsed Elapsed Seconds
-    echo "Approximately $((megabytes / elapsed)) MB per second"
+    test $gigabytes -ge 1000 && echo "Approximately $((megabytes / elapsed)) MB per second"
 fi
 
 

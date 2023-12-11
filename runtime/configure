@@ -7,7 +7,7 @@ sudo chgrp $me *
 sudo chmod 664 *
 
 # Make the scripts executable
-chmod +x test.sh
+chmod +x test
 chmod +x configure
 
 # Set these files to be owned by root, but to run suid
