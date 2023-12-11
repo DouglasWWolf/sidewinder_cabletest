@@ -1,0 +1,12 @@
+#
+# Usage: inject <1|2>
+# 
+source cabletest_api.sh
+
+if [ $(is_bitstream_loaded) -eq 0 ]; then
+    echo "Bitstream isn't loaded!"
+    exit 1
+fi
+
+inject $1
+

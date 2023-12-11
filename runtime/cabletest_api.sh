@@ -101,9 +101,13 @@ read_reg64()
     local hi_reg=$1
     local lo_reg=$((hi_reg + 4))
 
+    # Read both 32-bit words of the register
     local msw=$(read_reg $hi_reg)
     local lsw=$(read_reg $lo_reg)
 
+    # Re-read the high word.   If it has changes, it means
+    # the register rolled-over across a 32-bit boundary 
+    # and it needs to be re-read
     if [ $(read_reg $hi_reg) -ne $msw ]; then
         msw=$(read_reg $hi_reg)
         lsw=$(read_reg $lo_reg)
@@ -152,7 +156,7 @@ is_busy()
 
 
 #==============================================================================
-# Displays the "halted" status.  Non-zero = Packet generated was halted
+# Displays the "halted" status.  Non-zero = Packet generation was halted
 #==============================================================================
 is_halted()
 {
@@ -304,7 +308,14 @@ get_errors()
 #==============================================================================
 inject()
 {
-    pcireg $REG_CONTROL $1    
+    local channel=$1
+    if [ "$channel" == "1" ]; then
+        pcireg $REG_CONTROL 1
+    elif [ "$channel" == "2" ]; then
+        pcireg $REG_CONTROL 2
+    else
+        echo "Invalid channel number on inject()" 1>&2
+    fi
 }
 #==============================================================================
 
